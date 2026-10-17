@@ -1,0 +1,58 @@
+{% extends "base.html" %}{% block title %}{{ r.entity }} {{ r.period }} variance{% endblock %}
+{% block body %}
+{% set L = r.logic %}{% set ai = r.ai or {} %}{% set t = L.totals %}{% set cur = r.currency %}
+{% set FL = {'no_material_variance':'No category crossed the materiality thresholds.',
+ 'top_drivers_explain_less_than_60pct':'The top drivers explain under 60% of total variance, so the picture is incomplete.',
+ 'zero_forecast_in_driver':'A driver had a zero forecast, so its % variance is undefined.',
+ 'no_driver_has_supporting_evidence':'No driver has units, prices or notes that support a cause.',
+ 'ungrounded_number':'The AI used a figure that is not in your data; affected drivers were capped at low confidence.',
+ 'ungrounded_number_in_summary':'The AI summary used a figure that is not in your data. Check it before sharing.',
+ 'ai_unavailable':'The AI service was unavailable. Showing calculated figures only.'} %}
+<div class="head"><div><h1>{{ r.entity }}, {{ r.period }}</h1>
+ <span class="mute">Report #{{ r.id }} created {{ r.created_at[:16].replace('T',' ') }} UTC</span></div>
+ <div><div class="mute">Net profit impact ({{ cur }})</div>
+ <div class="net {{ 'fav' if t.profit_impact>=0 else 'unf' }}">{{ t.profit_impact|signed }}</div></div>
+ {% if r.status=='ok' and r.confidence is not none %}<div><div class="mute">Confidence in explanation</div>
+ <div class="conf"><b>{{ r.confidence }}%</b><div class="meter"><i style="width:{{ r.confidence }}%;background:{{ 'var(--fav)' if r.confidence>=70 else ('var(--amber)' if r.confidence>=50 else 'var(--unf)') }}"></i></div></div>
+ <div class="hint">{{ 'High: well supported' if r.confidence>=70 else ('Medium: check the flagged drivers' if r.confidence>=50 else 'Low: treat as a starting point') }}</div></div>{% endif %}</div>
+
+{% for f in r.flags %}{% if f in FL %}<div class="banner">{{ FL[f] }}</div>
+{% elif f.startswith('model_') %}<div class="banner">The AI response did not match your data ({{ f.split(':')[0].replace('_',' ') }}). Some drivers may be missing or dropped.</div>{% endif %}{% endfor %}
+{% if r.error %}<div class="banner">Reason: {{ r.error }}</div>{% endif %}
+
+<div class="panel"><h2>Summary</h2><p style="max-width:70ch;margin:0">{{ ai.summary }}</p></div>
+
+<div class="panel"><h2>Where the variance sits</h2>
+ <p class="hint">Bars show impact on profit. Right helps profit, left hurts it.</p>
+ {% set mx = (L.rows|map(attribute='profit_impact')|map('abs')|max) or 1 %}
+ <div class="bars">{% for x in L.rows|sort(attribute='share', reverse=True) %}
+  <div>{{ x.category }}{% if x.material %} <span class="pill">material</span>{% endif %}</div>
+  <div class="bar" role="img" aria-label="{{ x.category }} {{ x.profit_impact|signed }}"><i style="background:{{ 'var(--fav)' if x.profit_impact>=0 else 'var(--unf)' }};{% if x.profit_impact>=0 %}left:50%;width:{{ (x.profit_impact|abs/mx*50)|round(1) }}%{% else %}right:50%;width:{{ (x.profit_impact|abs/mx*50)|round(1) }}%{% endif %}"></i></div>
+  <div class="mute" style="text-align:right">{{ x.variance|signed }}{% if x.pct is not none %} ({{ '%+.1f'|format(x.pct) }}%){% endif %}</div>{% endfor %}</div></div>
+
+<div class="panel"><h2>Key drivers</h2>
+ {% if not ai.drivers %}<p class="mute">{% if r.status=='ai_failed' %}AI explanations are unavailable. The calculated drivers are listed below.{% else %}No drivers to explain.{% endif %}</p>
+ {% for x in L.drivers %}<div class="driver"><h3>{{ x.category }}</h3><span class="mute">{{ x.variance|signed }} {{ cur }}, {{ 'favorable' if x.favorable else 'unfavorable' }}. Rule-based hint: {{ x.hint }}.</span>
+  {% for e in x.evidence %}<div class="hint">{{ e }}</div>{% endfor %}</div>{% endfor %}{% endif %}
+ {% for d in ai.drivers %}{% set src = L.rows|selectattr('category','equalto',d.category)|first %}
+ <div class="driver"><div class="head" style="margin:0 0 6px"><div><h3 style="margin:0">{{ d.category }}</h3>
+  <span class="pill {{ d.classification }}">{{ d.classification }}</span>
+  <span class="{{ 'fav' if src.favorable else 'unf' }}">{{ src.variance|signed }} {{ cur }}{% if src.pct is not none %} ({{ '%+.1f'|format(src.pct) }}%){% endif %}, {{ 'favorable' if src.favorable else 'unfavorable' }}</span></div>
+  <div class="conf" style="min-width:120px"><span>{{ d.confidence }}%</span><div class="meter"><i style="width:{{ d.confidence }}%;background:{{ 'var(--fav)' if d.confidence>=70 else ('var(--amber)' if d.confidence>=50 else 'var(--unf)') }}"></i></div></div></div>
+  <p style="margin:.2rem 0;max-width:72ch">{{ d.explanation }}</p>
+  {% if d.evidence_used %}<div class="hint">Evidence: {{ d.evidence_used|join('; ') }}</div>{% endif %}
+  {% if d.missing_info %}<div class="hint">To confirm: {{ d.missing_info }}</div>{% endif %}
+  {% for n in d.guardrail_notes %}<div class="note-g">{{ n }}</div>{% endfor %}</div>{% endfor %}</div>
+
+{% if ai.questions_for_analyst %}<div class="panel"><h2>Questions to answer before you present</h2><ul>{% for q in ai.questions_for_analyst %}<li>{{ q }}</li>{% endfor %}</ul></div>{% endif %}
+
+<div class="panel"><h2>Numbers behind the analysis</h2><div class="rows"><table><thead><tr><th>Category</th><th>Type</th><th class="n">Forecast</th><th class="n">Actual</th><th class="n">Variance</th><th class="n">%</th><th class="n">Share of total</th></tr></thead><tbody>
+ {% for x in L.rows %}<tr><td>{{ x.category }}</td><td>{{ x.kind }}</td><td class="n">{{ x.forecast|money }}</td><td class="n">{{ x.actual|money }}</td>
+ <td class="n {{ 'fav' if x.favorable else 'unf' }}">{{ x.variance|signed }}</td><td class="n">{{ '%+.1f'|format(x.pct) if x.pct is not none else 'n/a' }}</td><td class="n">{{ '%.0f'|format(x.share) }}%</td></tr>{% endfor %}</tbody></table></div>
+ <p class="hint">Favorable means higher revenue or lower expense than forecast. Materiality: at least {{ L.settings.pct_threshold }}% variance and {{ L.settings.min_share }}% of total variance, or {{ L.settings.big_share|int }}% of total on its own.</p></div>
+
+<div class="actions"><form method="post" action="/report/{{ r.id }}/feedback" class="actions"><span class="mute">Was this useful?</span>
+ <button class="ghost" name="v" value="up">{{ 'Helpful (selected)' if r.feedback==1 else 'Helpful' }}</button>
+ <button class="ghost" name="v" value="down">{{ 'Not helpful (selected)' if r.feedback==-1 else 'Not helpful' }}</button></form>
+ <button class="ghost" onclick="window.print()">Print or save as PDF</button><a class="btn ghost" href="/">New analysis</a></div>
+{% endblock %}

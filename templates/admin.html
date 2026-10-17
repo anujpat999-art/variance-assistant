@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block body %}
+<div class="head"><h1>Admin dashboard</h1><a href="/admin/logout">Sign out</a></div>
+<div class="stats">
+ <div class="stat"><b>{{ s.n }}</b><span>reports</span></div>
+ <div class="stat"><b>{{ ((s.ok or 0)/s.n*100)|round|int if s.n else 0 }}%</b><span>AI calls succeeded</span></div>
+ <div class="stat"><b>{{ s.avg_conf|round|int if s.avg_conf is not none else '-' }}%</b><span>average confidence</span></div>
+ <div class="stat"><b>{{ s.low_conf or 0 }}</b><span>low-confidence reports (under 50%)</span></div>
+ <div class="stat"><b>{{ ((s.avg_latency or 0)/1000)|round(1) }}s</b><span>average response time</span></div>
+ <div class="stat"><b>${{ '%.4f'|format(s.cost or 0) }}</b><span>total LLM cost ({{ (s.tin or 0) + (s.tout or 0) }} tokens)</span></div>
+ <div class="stat"><b>{{ s.up or 0 }} / {{ s.down or 0 }}</b><span>helpful / not helpful</span></div></div>
+<div class="two">
+ <div class="panel"><h2>Driver classifications</h2>{% if not classes %}<p class="mute">No data yet.</p>{% endif %}
+  {% set cm = classes.values()|max if classes else 1 %}
+  <div class="bars" style="grid-template-columns:90px 1fr 30px">{% for k,v in classes.items() %}<div>{{ k }}</div><div class="bar" style="height:14px"><i style="left:0;background:var(--blue);width:{{ v/cm*100 }}%"></i></div><div>{{ v }}</div>{% endfor %}</div>
+  <p class="hint">A high share of "unclear" means users are not supplying units, prices or notes.</p></div>
+ <div class="panel"><h2>Flags raised</h2>{% if not flags %}<p class="mute">None yet.</p>{% endif %}
+  <table>{% for k,v in flags.items()|sort(attribute='1', reverse=True) %}<tr><td>{{ k.replace('_',' ') }}</td><td class="n">{{ v }}</td></tr>{% endfor %}</table></div></div>
+<div class="panel"><h2>Recent reports</h2><div class="rows"><table><thead><tr><th>#</th><th>Date</th><th>Entity</th><th>Period</th><th class="n">Confidence</th><th>Status</th><th>Feedback</th><th></th></tr></thead><tbody>
+ {% for r in reports %}<tr><td><a href="/report/{{ r.id }}">{{ r.id }}</a></td><td>{{ r.created_at[:16].replace('T',' ') }}</td><td>{{ r.entity }}</td><td>{{ r.period }}</td>
+ <td class="n">{{ r.confidence ~ '%' if r.confidence is not none else '-' }}</td><td>{{ r.status }}</td><td>{{ {1:'helpful',-1:'not helpful'}.get(r.feedback,'-') }}</td>
+ <td><form method="post" action="/admin/delete/{{ r.id }}" onsubmit="return confirm('Delete report {{ r.id }}?')"><button class="ghost">Delete</button></form></td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

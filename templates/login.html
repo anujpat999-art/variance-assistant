@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block body %}<h1>Admin sign in</h1>
+{% if err %}<div class="errors">{{ err }}</div>{% endif %}
+<form method="post" class="panel" style="max-width:360px"><label for="p">Password</label><input id="p" type="password" name="password" autofocus required>
+<div class="actions" style="margin-top:12px"><button>Sign in</button></div></form>{% endblock %}

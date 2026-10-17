@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block body %}<h1>Past reports</h1>
+{% if not reports %}<p class="lede">No reports yet. <a href="/">Run your first analysis.</a></p>{% else %}
+<div class="panel rows"><table><thead><tr><th>#</th><th>Date</th><th>Entity</th><th>Period</th><th class="n">Net profit impact</th><th class="n">Confidence</th><th>Status</th></tr></thead><tbody>
+{% for r in reports %}<tr><td><a href="/report/{{ r.id }}">{{ r.id }}</a></td><td>{{ r.created_at[:10] }}</td><td>{{ r.entity }}</td><td>{{ r.period }}</td>
+<td class="n {{ 'fav' if r.net_profit_impact>=0 else 'unf' }}">{{ r.net_profit_impact|signed }} {{ r.currency }}</td>
+<td class="n">{{ r.confidence ~ '%' if r.confidence is not none else '-' }}</td><td>{{ 'Explained' if r.status=='ok' else 'Figures only' }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}{% endblock %}
