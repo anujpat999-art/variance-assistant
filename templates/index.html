@@ -1,0 +1,55 @@
+{% extends "base.html" %}{% block body %}
+<h1>Explain a forecast miss</h1>
+<p class="lede">Enter forecast and actuals by category. The tool calculates the variances first, then asks an AI to explain only what your data supports. Anything it cannot support is marked unclear.</p>
+<div id="errors" class="errors" hidden></div>
+<form id="f">
+ <div class="panel"><div class="grid g3">
+  <div><label for="entity">Company or team</label><input id="entity" placeholder="e.g. UrbanKart"></div>
+  <div><label for="period">Period</label><input id="period" placeholder="e.g. Sep 2026" required></div>
+  <div><label for="currency">Currency</label><select id="currency"><option>USD</option><option>INR</option><option>EUR</option><option>GBP</option></select></div>
+ </div></div>
+ <div class="panel"><h2>Categories</h2>
+  <p class="hint">Enter amounts as positive numbers and choose revenue or expense. Units and price are optional but let the tool separate volume from price effects. Add a note for anything you already know (delays, one-offs).</p>
+  <div class="rows"><table id="t"><thead><tr><th>Category</th><th>Type</th><th class="n">Forecast</th><th class="n">Actual</th>
+   <th class="n opt">Fcst units</th><th class="n opt">Act units</th><th class="n opt">Fcst price</th><th class="n opt">Act price</th><th>Note</th><th></th></tr></thead><tbody></tbody></table></div>
+  <div class="actions" style="margin-top:12px"><button type="button" class="ghost" id="add">Add category</button>
+   <button type="button" class="ghost" id="sample">Load sample data</button>
+   <button type="button" class="ghost" id="pasteBtn">Paste CSV</button></div>
+  <div id="paste" hidden style="margin-top:10px"><label for="csv">Columns: category, type, forecast, actual, forecast units, actual units, forecast price, actual price, note</label>
+   <textarea id="csv" rows="5"></textarea><button type="button" class="ghost" id="csvGo" style="margin-top:6px">Import rows</button></div>
+ </div>
+ <details class="panel"><summary>Materiality settings</summary>
+  <div class="grid g3" style="margin-top:10px"><div><label for="pct">Flag a category when variance is at least (%)</label><input id="pct" type="number" value="5" min="0" step="0.5"></div>
+  <div><label for="share">and it explains at least (% of total variance)</label><input id="share" type="number" value="5" min="0" step="1"></div></div></details>
+ <div class="actions"><button id="go" type="submit">Analyze variance</button><span id="wait" class="hint" hidden>Calculating, then asking the AI. This takes a few seconds.</span></div>
+</form>
+<script>
+const tb=document.querySelector('#t tbody'),F=['category','kind','forecast','actual','forecast_units','actual_units','forecast_price','actual_price','note'];
+function row(d={}){const tr=document.createElement('tr');
+ tr.innerHTML=`<td class="cat"><input data-k="category" aria-label="Category"></td>
+ <td><select data-k="kind" aria-label="Type"><option value="revenue">Revenue</option><option value="expense">Expense</option></select></td>
+ ${['forecast','actual'].map(k=>`<td class="n"><input data-k="${k}" inputmode="decimal" aria-label="${k}"></td>`).join('')}
+ ${['forecast_units','actual_units','forecast_price','actual_price'].map(k=>`<td class="n opt"><input data-k="${k}" inputmode="decimal" aria-label="${k.replace('_',' ')}"></td>`).join('')}
+ <td class="note"><input data-k="note" maxlength="500" aria-label="Note"></td>
+ <td><button type="button" class="ghost" aria-label="Remove row" onclick="this.closest('tr').remove()">Remove</button></td>`;
+ F.forEach(k=>{if(d[k]!=null)tr.querySelector(`[data-k=${k}]`).value=d[k]});tb.appendChild(tr)}
+function rows(){return[...tb.rows].map(tr=>Object.fromEntries(F.map(k=>[k,tr.querySelector(`[data-k=${k}]`).value])))}
+function load(o){tb.innerHTML='';(o.rows||[]).forEach(row);for(const k of['entity','period','currency'])if(o[k])document.getElementById(k).value=o[k]}
+document.getElementById('add').onclick=()=>row();
+document.getElementById('sample').onclick=async()=>load(await (await fetch('/static/sample.json')).json());
+document.getElementById('pasteBtn').onclick=()=>{const p=document.getElementById('paste');p.hidden=!p.hidden};
+document.getElementById('csvGo').onclick=()=>{const lines=document.getElementById('csv').value.trim().split(/\r?\n/).filter(Boolean);
+ const start=/^category/i.test(lines[0]||'')?1:0;
+ lines.slice(start).forEach(l=>{const c=l.split(',').map(s=>s.trim());const d={};F.forEach((k,i)=>d[k]=c[i]||'');d.kind=(d.kind||'expense').toLowerCase();row(d)});
+ document.getElementById('paste').hidden=true};
+row();row();
+document.getElementById('f').onsubmit=async e=>{e.preventDefault();
+ const eb=document.getElementById('errors'),go=document.getElementById('go'),w=document.getElementById('wait');eb.hidden=true;go.disabled=true;w.hidden=false;
+ try{const r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+   entity:entity.value,period:period.value,currency:currency.value,rows:rows(),settings:{pct_threshold:pct.value||5,min_share:share.value||5}})});
+  const d=await r.json();
+  if(d.ok){location.href='/report/'+d.id;return}
+  eb.innerHTML='<b>Fix these before analyzing:</b><ul>'+(d.errors||['Something went wrong.']).map(x=>'<li>'+x.replace(/</g,'&lt;')+'</li>').join('')+'</ul>';eb.hidden=false;eb.scrollIntoView({behavior:'smooth'});
+ }catch(err){eb.innerHTML='Could not reach the server. Check your connection and try again.';eb.hidden=false}
+ go.disabled=false;w.hidden=true};
+</script>{% endblock %}

@@ -1,0 +1,9 @@
+{"entity":"UrbanKart","period":"Sep 2026","currency":"INR","rows":[
+{"category":"Product sales","kind":"revenue","forecast":5000000,"actual":4400000,"forecast_units":10000,"actual_units":8800,"forecast_price":500,"actual_price":500,"note":""},
+{"category":"Subscription revenue","kind":"revenue","forecast":1200000,"actual":1230000,"forecast_units":4000,"actual_units":4100,"forecast_price":300,"actual_price":300,"note":""},
+{"category":"Enterprise contracts","kind":"revenue","forecast":900000,"actual":600000,"note":"Two large deals slipped to October after procurement delays"},
+{"category":"Marketing spend","kind":"expense","forecast":700000,"actual":820000,"note":""},
+{"category":"Cloud hosting","kind":"expense","forecast":400000,"actual":520000,"forecast_units":2000,"actual_units":2000,"forecast_price":200,"actual_price":260,"note":""},
+{"category":"Salaries","kind":"expense","forecast":1500000,"actual":1510000,"note":""},
+{"category":"Legal and compliance","kind":"expense","forecast":100000,"actual":260000,"note":"One-off settlement payment"}
+]}
